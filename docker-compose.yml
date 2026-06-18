@@ -1,0 +1,28 @@
+services:
+  transcript-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai4me-transcript:latest
+    container_name: transcript-processor
+    ports:
+      - "8000:8000"
+    volumes:
+      # Ollama model store — read-only; populate on host before starting
+      - ${OLLAMA_MODELS_PATH}:/root/.ollama/models:ro
+      # Shared job volume — read input transcript, write output.json
+      - ${SHARED_VOLUME_PATH_HOST}:/shared
+    environment:
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - SHARED_VOLUME_PATH=/shared
+      # Optional tuning
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-1}
+      - UVICORN_LOG_LEVEL=${UVICORN_LOG_LEVEL:-info}
+      - MAX_TRANSCRIPT_CHARS=${MAX_TRANSCRIPT_CHARS:-0}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
