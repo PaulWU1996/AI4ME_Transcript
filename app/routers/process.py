@@ -1,11 +1,16 @@
 import json
+import logging
 import os
 from pathlib import Path
+from typing import Optional
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services import ollama_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -20,6 +25,9 @@ def _max_chars() -> int:
 
 class ProcessRequest(BaseModel):
     job_id: str
+    job_type: str = "script"
+    callback_url: Optional[str] = None
+    prompts: Optional[str] = None
     language: str = "en"
 
 
@@ -31,8 +39,22 @@ class ProcessResponse(BaseModel):
     processing_time_ms: int
 
 
+async def _fire_callback(url: str, payload: dict) -> None:
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json=payload)
+    except Exception as exc:
+        logger.warning("callback to %s failed: %s", url, exc)
+
+
 @router.post("/process", response_model=ProcessResponse)
 async def process_transcript(req: ProcessRequest):
+    if req.job_type != "script":
+        raise HTTPException(
+            status_code=422,
+            detail=f"job_type '{req.job_type}' is not handled by this service",
+        )
+
     transcript_path = _shared_path() / req.job_id / "transcript.txt"
 
     if not transcript_path.exists():
@@ -57,7 +79,7 @@ async def process_transcript(req: ProcessRequest):
         raise HTTPException(status_code=503, detail="Ollama service unavailable")
 
     try:
-        result = await ollama_client.generate(transcript, req.language)
+        result = await ollama_client.generate(transcript, req.language, custom_prompt=req.prompts)
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -66,6 +88,9 @@ async def process_transcript(req: ProcessRequest):
     output_path = _shared_path() / req.job_id / "output.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if req.callback_url:
+        await _fire_callback(req.callback_url, output)
 
     return output
 

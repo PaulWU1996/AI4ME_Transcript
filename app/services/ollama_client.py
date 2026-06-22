@@ -19,9 +19,10 @@ async def is_ready() -> bool:
         return False
 
 
-async def generate(transcript: str, language: str = "en") -> dict:
+async def generate(transcript: str, language: str = "en", custom_prompt: str | None = None) -> dict:
     model = os.environ["OLLAMA_MODEL"]
-    prompt = _PROMPT_TEMPLATE.format_map({"transcript": transcript, "language": language})
+    template = custom_prompt if custom_prompt is not None else _PROMPT_TEMPLATE
+    prompt = template.format_map({"transcript": transcript, "language": language})
 
     payload = {
         "model": model,
@@ -52,7 +53,7 @@ async def generate(transcript: str, language: str = "en") -> dict:
 
     return {
         "title": str(data["title"]),
-        "summary": [str(p) for p in data["summary"]],
+        "summary": data["summary"],
         "model": model,
         "processing_time_ms": elapsed_ms,
     }
