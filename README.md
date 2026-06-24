@@ -18,18 +18,19 @@ transcript-processor container
 ## Quick start
 
 ```bash
-# 1. Copy and fill in your environment
-cp .env.example .env
+# 1. Edit docker-compose.yml and set OLLAMA_MODEL to the model you want to use
 
 # 2. Build and start
+#    First run: the container will automatically pull OLLAMA_MODEL into ./weights/ollama
+#    if it isn't already there (requires internet access, may take a few minutes).
 docker compose up --build
 
 # 3. Poll until ready
 curl http://localhost:8000/health
 
 # 4. Create a test job and send it
-mkdir -p /tmp/ai4me_shared/test123
-echo "Your transcript text here." > /tmp/ai4me_shared/test123/transcript.txt
+mkdir -p ./shared/test123
+echo "Your transcript text here." > ./shared/test123/transcript.txt
 
 curl -X POST http://localhost:8000/process \
   -H 'Content-Type: application/json' \
@@ -71,16 +72,16 @@ Returns HTTP 503 if Ollama is not ready. Poll this before sending the first job.
 
 ## Configuration
 
-| Variable | Required | Example | Notes |
-|---|---|---|---|
-| `OLLAMA_MODEL` | yes | `llama3.2:3b` | Must be present on the mounted model volume |
-| `OLLAMA_MODELS_PATH` | yes | `~/.ollama/models` | Host path, mounted read-only into the container |
-| `SHARED_VOLUME_PATH_HOST` | yes | `/tmp/ai4me_shared` | Host path for shared job files |
-| `SHARED_VOLUME_PATH` | no | `/shared` | Container-side path (default `/shared`) |
-| `MAX_TRANSCRIPT_CHARS` | no | `0` | Character limit per request; `0` = no limit |
+All values are hardcoded in `docker-compose.yml` — no `.env` file needed. The only line you'll typically change is `OLLAMA_MODEL`.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `OLLAMA_MODEL` | `llama3.2:3b` | Model tag; pulled automatically on first run if missing |
+| `SHARED_VOLUME_PATH` | `/shared` | Container-side path — matches `./shared` mount |
+| `MAX_TRANSCRIPT_CHARS` | `0` | Character limit per request; `0` = no limit |
 
 ## Notes
 
 - **CPU-only**: no GPU assumed. Inference on a 3B model takes 15–90 s. Set your orchestrator's HTTP timeout above 120 s.
 - **Serial processing**: one request at a time. Scale by running multiple container replicas behind a load balancer.
-- **Models are not bundled**: populate `OLLAMA_MODELS_PATH` on the host before starting the container.
+- **Models are not bundled in the image**: stored in `./weights/ollama`, pulled automatically on first run.

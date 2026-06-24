@@ -26,6 +26,9 @@ COPY app/ ./app/
 COPY scripts/ ./scripts/
 RUN chmod +x /app/scripts/entrypoint.sh
 
+# Declare mount points so Docker creates them with correct ownership
+RUN mkdir -p /shared /root/.ollama/models
+
 EXPOSE 8000
 
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
