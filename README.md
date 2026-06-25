@@ -70,6 +70,47 @@ The same payload is written to `shared/{job_id}/output.json`.
 
 Returns HTTP 503 if Ollama is not ready. Poll this before sending the first job.
 
+## Composing with the orchestrator
+
+Build the image once from this repo, then reference it by name in the orchestrator's `docker-compose.yml` — no source code needed on the orchestrator side.
+
+**Step 1 — Build the image:**
+```bash
+docker compose build
+```
+
+**Step 2 — Add this snippet to the orchestrator's `docker-compose.yml`:**
+```yaml
+  transcript-processor:
+    image: ai4me-transcript:latest
+    container_name: transcript-processor
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./weights/ollama:/root/.ollama/models
+      - ./shared:/shared
+    environment:
+      - OLLAMA_MODEL=llama3.2:3b
+      - SHARED_VOLUME_PATH=/shared
+      - UVICORN_WORKERS=1
+      - UVICORN_LOG_LEVEL=info
+      - MAX_TRANSCRIPT_CHARS=0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+```
+
+If distributing across machines, push to a registry first:
+```bash
+docker tag ai4me-transcript:latest your-registry/ai4me-transcript:latest
+docker push your-registry/ai4me-transcript:latest
+```
+Then update `image:` in the snippet above to match the registry path.
+
 ## Configuration
 
 All values are hardcoded in `docker-compose.yml` — no `.env` file needed. The only line you'll typically change is `OLLAMA_MODEL`.
