@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /private/tmp -name \"*.txt\" 2>/dev/null | head -20)",
+      "Read(//private/tmp/**)"
+    ]
+  }
+}

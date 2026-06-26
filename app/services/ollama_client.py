@@ -7,7 +7,10 @@ from pathlib import Path
 import httpx
 
 OLLAMA_BASE_URL = "http://localhost:11434"
-_PROMPT_TEMPLATE = (Path(__file__).parent.parent / "prompts" / "transcript.txt").read_text()
+
+_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+_DEFAULT_REQUIREMENTS = (_PROMPTS_DIR / "transcript.txt").read_text()
+_OUTPUT_STRUCTURE = (_PROMPTS_DIR / "output_structure.txt").read_text()
 
 
 async def is_ready() -> bool:
@@ -19,10 +22,30 @@ async def is_ready() -> bool:
         return False
 
 
+def _build_prompt(transcript: str, language: str, custom_requirements: str | None) -> str:
+    requirements = custom_requirements if custom_requirements is not None else _DEFAULT_REQUIREMENTS
+    # format_map only on requirements — keeps {language} slot; transcript is concatenated
+    # directly to avoid KeyError if transcript text contains { } characters
+    rendered_requirements = requirements.format_map({"language": language})
+    return (
+        "<system>\n"
+        + rendered_requirements
+        + "\n"
+        + _OUTPUT_STRUCTURE
+        + "</system>\n\n"
+        "<user>\n"
+        "Transcript:\n"
+        "---\n"
+        + transcript
+        + "\n---\n\n"
+        "Produce the JSON output now.\n"
+        "</user>"
+    )
+
+
 async def generate(transcript: str, language: str = "en", custom_prompt: str | None = None) -> dict:
     model = os.environ["OLLAMA_MODEL"]
-    template = custom_prompt if custom_prompt is not None else _PROMPT_TEMPLATE
-    prompt = template.format_map({"transcript": transcript, "language": language})
+    prompt = _build_prompt(transcript, language, custom_prompt)
 
     payload = {
         "model": model,

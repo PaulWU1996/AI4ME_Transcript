@@ -34,7 +34,7 @@ class ProcessRequest(BaseModel):
 class ProcessResponse(BaseModel):
     job_id: str
     title: str
-    summary: list[str]
+    summary: str
     model: str
     processing_time_ms: int
 

@@ -35,6 +35,20 @@ echo "Your transcript text here." > ./shared/test123/transcript.txt
 curl -X POST http://localhost:8000/process \
   -H 'Content-Type: application/json' \
   -d '{"job_id": "test123", "job_type": "script"}'
+
+# With a custom prompt (overrides the default template):
+curl -X POST http://localhost:8000/process \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "job_id": "test123",
+    "job_type": "script",
+    "prompts": "Read this transcript and respond ONLY in this JSON format:\n{{\"title\": \"<one catchy sentence>\", \"summary\": \"<one paragraph>\"}}\n\nTranscript:\n---\n{transcript}\n---"
+  }'
+
+# With a callback URL (result is POSTed there after processing):
+curl -X POST http://localhost:8000/process \
+  -H 'Content-Type: application/json' \
+  -d '{"job_id": "test123", "job_type": "script", "callback_url": "http://orchestrator-host/jobs/test123/done"}'
 ```
 
 ## API
@@ -47,20 +61,29 @@ curl -X POST http://localhost:8000/process \
 | `job_type` | string | yes | Must be `"script"` |
 | `language` | string | no | Response language, e.g. `"en"`, `"zh"` (default `"en"`) |
 | `callback_url` | string | no | If set, result is POSTed here after `output.json` is written |
-| `prompts` | string | no | Custom prompt override (must contain `{transcript}` and `{language}` slots) |
+| `prompts` | string | no | Custom prompt override; must contain `{transcript}` and `{language}` slots |
 
 **Response (HTTP 200):**
 ```json
 {
   "job_id": "test123",
   "title": "Why Morning Routines Are Secretly Rewriting Your Brain",
-  "summary": "Three researchers found that habits formed before 9 AM have an outsized impact on daily productivity, driven by peak prefrontal cortex plasticity immediately after waking.",
+  "summary": "Researchers found that habits formed before 9 AM have an outsized impact on daily productivity, driven by peak prefrontal cortex plasticity immediately after waking.",
   "model": "llama3.2:3b",
   "processing_time_ms": 4217
 }
 ```
 
 The same payload is written to `shared/{job_id}/output.json`.
+
+**Error responses:**
+
+| Status | Condition |
+|---|---|
+| 404 | `transcript.txt` not found for the given `job_id` |
+| 413 | Transcript exceeds `MAX_TRANSCRIPT_CHARS` limit |
+| 422 | `job_type` is not `"script"`, or transcript is empty |
+| 503 | Ollama is not ready |
 
 ### `GET /health`
 
