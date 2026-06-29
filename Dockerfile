@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Layer 1 — OS packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    zstd \
     python3 \
     python3-pip \
     python3-venv \

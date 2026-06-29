@@ -30,19 +30,19 @@ curl http://localhost:8000/health
 
 # 4. Create a test job and send it
 mkdir -p ./shared/test123
-echo "Your transcript text here." > ./shared/test123/transcript.txt
+echo "FIFA is a sports governing body that organizes association football events all over the world. FIFA outlines several objectives in its organisational statutes, including growing the game internationally, ensuring it is accessible to everyone, and advocating for integrity and fair play.[7] It is responsible for organising and promoting association football's major international tournaments, notably the World Cup which began in 1930, and the Women's World Cup which commenced in 1991. Although FIFA does not solely set the laws of the game, that being the responsibility of the International Football Association Board of which FIFA is a member, it applies and enforces the rules across all FIFA competitions.[8] All FIFA tournaments generate revenue from sponsorships; in 2022, FIFA had revenues of over US$5.8 billion, ending the 2019–2022 cycle with a net positive of $1.2 billion, and cash reserves of over $3.9 billion." > ./shared/test123/transcript.txt
 
 curl -X POST http://localhost:8000/process \
   -H 'Content-Type: application/json' \
   -d '{"job_id": "test123", "job_type": "script"}'
 
-# With a custom prompt (overrides the default template):
+# With custom requirements (overrides only the editable part of the prompt):
 curl -X POST http://localhost:8000/process \
   -H 'Content-Type: application/json' \
   -d '{
     "job_id": "test123",
     "job_type": "script",
-    "prompts": "Read this transcript and respond ONLY in this JSON format:\n{{\"title\": \"<one catchy sentence>\", \"summary\": \"<one paragraph>\"}}\n\nTranscript:\n---\n{transcript}\n---"
+    "prompts": "You are a news editor. Write a punchy headline and a one-sentence summary."
   }'
 
 # With a callback URL (result is POSTed there after processing):
@@ -61,7 +61,7 @@ curl -X POST http://localhost:8000/process \
 | `job_type` | string | yes | Must be `"script"` |
 | `language` | string | no | Response language, e.g. `"en"`, `"zh"` (default `"en"`) |
 | `callback_url` | string | no | If set, result is POSTed here after `output.json` is written |
-| `prompts` | string | no | Custom prompt override; must contain `{transcript}` and `{language}` slots |
+| `prompts` | string | no | Overrides the requirements section of the prompt (see Prompt structure below); must contain a `{language}` slot |
 
 **Response (HTTP 200):**
 ```json
@@ -133,6 +133,34 @@ docker tag ai4me-transcript:latest your-registry/ai4me-transcript:latest
 docker push your-registry/ai4me-transcript:latest
 ```
 Then update `image:` in the snippet above to match the registry path.
+
+## Prompt structure
+
+The prompt sent to Ollama is assembled from two separate files:
+
+| File | Editable | Purpose |
+|---|---|---|
+| `app/prompts/transcript.txt` | Yes — overridable via `prompts` field | Requirements: what the model should produce and in what style |
+| `app/prompts/output_structure.txt` | No — always fixed | Output schema: the exact JSON format the model must return |
+
+The final prompt assembled at runtime looks like:
+
+```
+<system>
+{requirements}          ← from transcript.txt, or the prompts field if provided
+{output_structure}      ← always from output_structure.txt, never overridden
+</system>
+
+<user>
+Transcript:
+---
+{transcript text}       ← injected by the service, not part of either template
+---
+Produce the JSON output now.
+</user>
+```
+
+Keeping the output structure fixed means the JSON parser always gets a predictable response regardless of what custom requirements are passed in. When providing a custom `prompts` value, only include a `{language}` slot — the transcript and output format are handled automatically.
 
 ## Configuration
 
