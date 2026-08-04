@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import time
 from pathlib import Path
 
@@ -50,6 +49,7 @@ async def generate(transcript: str, language: str = "en", custom_prompt: str | N
     payload = {
         "model": model,
         "prompt": prompt,
+        "format": "json",
         "stream": False,
         "options": {
             "temperature": 0.3,
@@ -65,11 +65,10 @@ async def generate(transcript: str, language: str = "en", custom_prompt: str | N
     elapsed_ms = int((time.monotonic() - t0) * 1000)
     raw = response.json()["response"]
 
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not match:
-        raise ValueError(f"Model did not return valid JSON. Raw output: {raw!r}")
-
-    data = json.loads(match.group())
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Model returned malformed JSON: {exc}. Raw: {raw!r}") from exc
 
     if "title" not in data or "summary" not in data:
         raise ValueError(f"Model JSON missing required fields. Got: {data}")
