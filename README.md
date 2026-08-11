@@ -20,10 +20,10 @@ transcript-processor container
 ```bash
 # 1. Edit docker-compose.yml and set OLLAMA_MODEL to the model you want to use
 
-# 2. Build and start
+# 2. Build and start — automatically detects GPU and picks the right mode
 #    First run: the container will automatically pull OLLAMA_MODEL into ./weights/ollama
 #    if it isn't already there (requires internet access, may take a few minutes).
-docker compose up --build
+./scripts/run.sh up --build
 
 # 3. Poll until ready
 curl http://localhost:8000/health
@@ -125,6 +125,14 @@ docker compose build
       retries: 5
       start_period: 60s
     restart: unless-stopped
+    # Remove the deploy block below if running CPU-only
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 ```
 
 If distributing across machines, push to a registry first:
@@ -172,8 +180,53 @@ All values are hardcoded in `docker-compose.yml` — no `.env` file needed. The 
 | `SHARED_VOLUME_PATH` | `/shared` | Container-side path — matches `./shared` mount |
 | `MAX_TRANSCRIPT_CHARS` | `0` | Character limit per request; `0` = no limit |
 
+## GPU support
+
+Use `scripts/run.sh` instead of `docker compose` directly — it detects GPU availability and picks the right compose configuration automatically:
+
+```bash
+./scripts/run.sh up --build   # GPU mode if nvidia-smi found, CPU mode otherwise
+./scripts/run.sh down         # any other docker compose subcommand works too
+```
+
+The script prints which mode was chosen at startup:
+```
+GPU detected: NVIDIA GeForce RTX 4090 — starting in GPU mode
+# or
+No GPU detected — starting in CPU mode
+```
+
+Internally it merges `docker-compose.yml` (base) with `docker-compose.gpu.yml` (GPU override) when a GPU is found. For CPU-only, the base file is used alone — no manual edits needed.
+
+**GPU prerequisite**: [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) must be installed on the host.
+
+| Mode | Inference time (3B model) |
+|---|---|
+| CPU | 15–90 s |
+| GPU (e.g. RTX 4090) | 1–5 s |
+
+## Logging
+
+Logs go to stdout and are captured by Docker:
+
+```bash
+docker logs -f transcript-processor          # follow live
+docker logs --tail 50 transcript-processor   # last 50 lines
+docker logs transcript-processor 2>&1 | grep "job_id=test123"  # filter by job
+docker logs transcript-processor 2>&1 | grep "ERROR"           # errors only
+```
+
+A happy-path request produces:
+```
+INFO  | job received      | job_id=abc123 job_type=script language=en
+INFO  | transcript read   | job_id=abc123 chars=4821
+INFO  | ollama call start | job_id=abc123
+INFO  | ollama call done  | job_id=abc123 ms=18432
+INFO  | output written    | job_id=abc123 path=/shared/abc123/output.json
+```
+
 ## Notes
 
-- **CPU-only**: no GPU assumed. Inference on a 3B model takes 15–90 s. Set your orchestrator's HTTP timeout above 120 s.
 - **Serial processing**: one request at a time. Scale by running multiple container replicas behind a load balancer.
 - **Models are not bundled in the image**: stored in `./weights/ollama`, pulled automatically on first run.
+- **Orchestrator timeout**: set above 120 s for CPU, 30 s is sufficient for GPU.

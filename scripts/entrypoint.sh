@@ -6,6 +6,14 @@ if [ -z "${OLLAMA_MODEL:-}" ]; then
   exit 1
 fi
 
+# Detect GPU and log which compute backend Ollama will use
+if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null 2>&1; then
+  GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+  echo "GPU detected: ${GPU_NAME} — Ollama will use GPU"
+else
+  echo "No GPU detected — Ollama will use CPU"
+fi
+
 echo "Starting Ollama daemon..."
 ollama serve &
 OLLAMA_PID=$!
