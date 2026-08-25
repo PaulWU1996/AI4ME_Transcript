@@ -2,6 +2,7 @@ import json
 import os
 import time
 from pathlib import Path
+import logging
 
 import httpx
 
@@ -11,6 +12,7 @@ _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 _DEFAULT_REQUIREMENTS = (_PROMPTS_DIR / "transcript.txt").read_text()
 _OUTPUT_STRUCTURE = (_PROMPTS_DIR / "output_structure.txt").read_text()
 
+logger = logging.getLogger(__name__)
 
 async def is_ready() -> bool:
     try:
@@ -60,7 +62,7 @@ async def generate(transcript: str, language: str = "en", custom_prompt: str | N
         },
     }
     
-    print(f"Generating with prompt:\n {prompt}")
+    logger.info(f"Generating with prompt:\n {prompt}")
 
     t0 = time.monotonic()
     async with httpx.AsyncClient(timeout=120.0) as client:
