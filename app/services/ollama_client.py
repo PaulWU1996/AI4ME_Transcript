@@ -22,8 +22,11 @@ async def is_ready() -> bool:
 
 
 def _build_prompt(transcript: str, language: str, custom_requirements: str | None) -> str:
-    requirements = custom_requirements if custom_requirements is not None else _DEFAULT_REQUIREMENTS
-    # format_map only on requirements — keeps {language} slot; transcript is concatenated
+    requirements = _DEFAULT_REQUIREMENTS
+    if custom_requirements:
+        requirements = f"{_DEFAULT_REQUIREMENTS}\n\n{custom_requirements}"
+
+    # format_map on requirements — keeps {language} slot; transcript is concatenated
     # directly to avoid KeyError if transcript text contains { } characters
     rendered_requirements = requirements.format_map({"language": language})
     return (
