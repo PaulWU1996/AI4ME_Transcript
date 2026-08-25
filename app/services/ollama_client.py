@@ -59,6 +59,8 @@ async def generate(transcript: str, language: str = "en", custom_prompt: str | N
             "num_predict": 512,
         },
     }
+    
+    print(f"Generating with prompt:\n {prompt}")
 
     t0 = time.monotonic()
     async with httpx.AsyncClient(timeout=120.0) as client:
